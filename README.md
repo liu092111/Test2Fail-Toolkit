@@ -212,43 +212,7 @@ maintenance = analyzer.calculate_maintenance_recommendations(
 - **Reliability at Target Cycles**: Probability of survival
 - **Maintenance Intervals**: Optimal service schedules
 
-## 🤝 Contributing
 
-We welcome contributions! Please feel free to submit issues, feature requests, or pull requests.
-
-### Development Setup
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
-## 🙏 Acknowledgments
-
-- Built with Python scientific computing stack (NumPy, SciPy, Matplotlib)
-- Statistical methods based on reliability engineering best practices
-- GUI framework powered by Tkinter
-- PDF generation using FPDF2
-
-## 📞 Support
-
-For questions, issues, or feature requests:
-- Open an issue on GitHub
-- Check the documentation in the code comments
-- Review the sample datasets for usage examples
-
-## 🔄 Version History
-
-- **v1.0.0**: Initial release with core functionality
-  - Weibull, Lognormal, and Exponential distribution fitting
-  - Bootstrap and Monte Carlo analysis
-  - Professional PDF report generation
-  - Intuitive GUI interface
-  - Sample datasets and documentation
 
 ---
 
