@@ -26,7 +26,8 @@ class LifetimeAnalyzer:
         if len(self.data) == 0:
             raise ValueError("No valid numeric data found in the file.")
 
-        self.x = np.linspace(min(self.data), max(self.data), 200)
+        # Extended X-axis range for better visualization
+        self.x = np.linspace(5000, 50000, 200)
         self.results = {}
         self.best_model = None
 
@@ -38,12 +39,15 @@ class LifetimeAnalyzer:
         wb_sf = weibull_min.sf(self.x, *wb_params)
         wb_ll = np.sum(weibull_min.logpdf(self.data, *wb_params))
         wb_mttf = wb_eta * gamma(1 + 1 / wb_beta)
-        wb_label = rf"Weibull: $S(t)=\exp(-(\frac{{t}}{{\eta}})^{{\beta}})$, " \
-                   rf"$\beta={wb_beta:.2f}$, $\eta={wb_eta:.2f}$, MTTF={wb_mttf:.2f}"
+        # Full label with formula for survival plot
+        wb_label_full = rf"Weibull: $S(t)=\exp(-(\frac{{t}}{{\eta}})^{{\beta}})$, " \
+                        rf"$\beta={wb_beta:.2f}$, $\eta={wb_eta:.2f}$, MTTF={wb_mttf:.2f}"
+        # Simplified label for PDF plot
+        wb_label_simple = rf"Weibull: $\beta={wb_beta:.2f}$, $\eta={wb_eta:.2f}$, MTTF={wb_mttf:.2f}"
 
         self.results['Weibull'] = {
             'pdf': wb_pdf, 'sf': wb_sf, 'll': wb_ll,
-            'mttf': wb_mttf, 'label': wb_label, 'color': 'orange'
+            'mttf': wb_mttf, 'label': wb_label_full, 'label_simple': wb_label_simple, 'color': 'orange'
         }
         self.weibull_params = {
             'beta': wb_beta,
@@ -59,12 +63,15 @@ class LifetimeAnalyzer:
         ln_sf = lognorm.sf(self.x, *ln_params)
         ln_ll = np.sum(lognorm.logpdf(self.data, *ln_params))
         ln_mttf = np.exp(ln_mu + 0.5 * ln_sigma**2)
-        ln_label = rf"Lognormal: $S(t)=1-\Phi((\ln t-\mu)/\sigma)$, " \
-                   rf"$\mu={ln_mu:.2f}$, $\sigma={ln_sigma:.2f}$, MTTF={ln_mttf:.2f}"
+        # Full label with formula for survival plot
+        ln_label_full = rf"Lognormal: $S(t)=1-\Phi((\ln t-\mu)/\sigma)$, " \
+                        rf"$\mu={ln_mu:.2f}$, $\sigma={ln_sigma:.2f}$, MTTF={ln_mttf:.2f}"
+        # Simplified label for PDF plot
+        ln_label_simple = rf"Lognormal: $\mu={ln_mu:.2f}$, $\sigma={ln_sigma:.2f}$, MTTF={ln_mttf:.2f}"
 
         self.results['Lognormal'] = {
             'pdf': ln_pdf, 'sf': ln_sf, 'll': ln_ll,
-            'mttf': ln_mttf, 'label': ln_label, 'color': 'green'
+            'mttf': ln_mttf, 'label': ln_label_full, 'label_simple': ln_label_simple, 'color': 'green'
         }
 
         # === Exponential ===
@@ -74,12 +81,15 @@ class LifetimeAnalyzer:
         ex_sf = expon.sf(self.x, *ex_params)
         ex_ll = np.sum(expon.logpdf(self.data, *ex_params))
         ex_mttf = 1 / ex_lambda
-        ex_label = rf"Exponential: $S(t)=\exp(-\lambda t)$, " \
-                   rf"$\lambda={ex_lambda:.2f}$, MTTF={ex_mttf:.2f}"
+        # Full label with formula for survival plot
+        ex_label_full = rf"Exponential: $S(t)=\exp(-\lambda t)$, " \
+                        rf"$\lambda={ex_lambda:.2f}$, MTTF={ex_mttf:.2f}"
+        # Simplified label for PDF plot
+        ex_label_simple = rf"Exponential: $\lambda={ex_lambda:.2f}$, MTTF={ex_mttf:.2f}"
 
         self.results['Exponential'] = {
             'pdf': ex_pdf, 'sf': ex_sf, 'll': ex_ll,
-            'mttf': ex_mttf, 'label': ex_label, 'color': 'red'
+            'mttf': ex_mttf, 'label': ex_label_full, 'label_simple': ex_label_simple, 'color': 'red'
         }
 
         # === Determine Best Fit ===
@@ -187,8 +197,9 @@ class LifetimeAnalyzer:
 
     def plot_histogram(self):
         fig, ax = plt.subplots(figsize=(8, 5))
-        ax.hist(self.data, bins=30, density=True, alpha=0.5, color='skyblue', edgecolor='black')
-        ax.set_xlabel("Life Cycles", fontsize=12)
+        ax.hist(self.data, bins=20, density=True, alpha=0.5, color='skyblue', edgecolor='black')
+        ax.set_xlim(5000, 50000)
+        ax.set_xlabel("Lifetime Cycles", fontsize=12)
         ax.set_ylabel("Probability Density", fontsize=12)
         ax.set_title("Histogram of Lifetime Data", fontsize=14, fontweight='bold')
         ax.grid(True, linestyle='--', alpha=0.6)
@@ -197,14 +208,16 @@ class LifetimeAnalyzer:
 
     def plot_pdf_comparison(self):
         fig, ax = plt.subplots(figsize=(8, 5))
-        ax.hist(self.data, bins=30, density=True, alpha=0.5)
+        ax.hist(self.data, bins=20, density=True, alpha=0.5)
         for name, res in self.results.items():
-            ax.plot(self.x, res['pdf'], color=res['color'], label=res['label'])
+            # Use simplified label for PDF plot
+            ax.plot(self.x, res['pdf'], color=res['color'], label=res['label_simple'])
             ax.axvline(res['mttf'], color=res['color'], linestyle='--', alpha=0.6)
-        ax.set_xlabel("Lifetime Cycles")
-        ax.set_ylabel("Frequency")
-        ax.set_title("PDF Distribution Comparison")
-        ax.legend(title=f"Best Fit: {self.best_model}", fontsize=10)
+        ax.set_xlim(5000, 50000)
+        ax.set_xlabel("Lifetime Cycles", fontsize=12)
+        ax.set_ylabel("Probability Density", fontsize=12)
+        ax.set_title("PDF Distribution Comparison", fontsize=14, fontweight='bold')
+        ax.legend(title=f"Best Fit: {self.best_model}", fontsize=9, loc='upper right')
         ax.grid(True)
         fig.tight_layout()
         return fig
@@ -215,8 +228,9 @@ class LifetimeAnalyzer:
             ax.plot(self.x, res['sf'], color=res['color'], label=res['label'], linewidth=2)
             ax.axvline(res['mttf'], color=res['color'], linestyle='--', alpha=0.6, linewidth=1)
         
+        ax.set_xlim(5000, 50000)
         ax.set_xlabel("Lifetime Cycles", fontsize=12)
-        ax.set_ylabel("Survival Probability", fontsize=12)
+        ax.set_ylabel("Probability", fontsize=12)
         ax.set_title("Survival Function Comparison", fontsize=14, fontweight='bold')
         ax.legend(title=f"Best Fit: {self.best_model}", fontsize=10, loc='upper right')
         ax.grid(True, alpha=0.3)
@@ -489,7 +503,7 @@ class LifetimeAnalyzerPlot:
 
         # Create histogram comparison
         fig_hist, ax_hist = plt.subplots(figsize=(10, 6))
-        ax_hist.hist(actual_data, bins=30, density=True, alpha=0.6, label='Actual Data', 
+        ax_hist.hist(actual_data, bins=20, density=True, alpha=0.6, label='Actual Data', 
                     color='steelblue', edgecolor='black')
         ax_hist.hist(simulated_data, bins=50, density=True, alpha=0.4, label='Simulated Data', 
                     color='orange', edgecolor='black')

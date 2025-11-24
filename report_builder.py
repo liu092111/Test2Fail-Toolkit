@@ -19,13 +19,31 @@ class ReportBuilder:
         self.figure_descriptions = [
             {
                 'title': 'Histogram of Lifetime Data',
-                'description': 'This histogram displays the frequency distribution of observed failure times from the dataset. The shape of the distribution provides crucial insights into the underlying failure mechanism and helps validate the appropriateness of the chosen probability distribution model.',
-                'technical_details': 'Distribution analysis shows failure pattern characteristics essential for reliability engineering decisions.'
+                'description': 'This figure illustrates the distribution of the observed failure times collected from the test samples. Each bar in the histogram represents the frequency of failures occurring within a specific range of lifetime cycles. By examining the overall shape of the histogram, we can identify how the failures are distributed over time — for instance, whether most components fail early (indicating early-life issues), steadily (indicating random failures), or predominantly at later stages (indicating wear-out mechanisms).',
+                'technical_details': '''Understanding the failure-time distribution allows engineers to:
+
+• Assess failure behavior — For example, a right-skewed distribution with a long tail may suggest a small portion of components last significantly longer than average, while a steep early peak could imply process or material inconsistency.
+
+• Choose an appropriate statistical model — The histogram's shape provides visual cues for model selection (e.g., Weibull for wear-out failures, Exponential for constant failure rates).
+
+• Guide reliability improvements — If failures are concentrated in early cycles, process control or burn-in testing may be needed; if they appear in later cycles, focus should shift toward material fatigue, corrosion, or long-term degradation mechanisms.
+
+This figure thus establishes the empirical baseline of the product's lifetime characteristics, forming the foundation for quantitative modeling and predictive reliability assessment in later stages.'''
             },
             {
                 'title': 'Probability Density Function (PDF) Comparison', 
-                'description': 'This plot compares three fitted probability distributions (Weibull, Lognormal, and Exponential) overlaid on the original data histogram. Each distribution is fitted using Maximum Likelihood Estimation (MLE).',
-                'technical_details': 'The best-fit distribution provides the most accurate mathematical representation of the failure behavior for lifetime predictions.'
+                'description': '''This figure compares three lifetime models, Weibull, Lognormal, and Exponential. Each fitted to the observed failure data using the Maximum Likelihood Estimation (MLE) method.MLE is a statistical approach that finds the most plausible model parameters so that the fitted curve best represents how failures occur over time.
+
+Each colored curve represents a probability density function (PDF), which describes the likelihood that a component will fail at a given point in its lifetime.The Weibull distribution is widely used for mechanical parts because it can represent early-life, random, or wear-out failures depending on its shape. The Lognormal distribution often models chemical or environmental degradation, where aging accumulates gradually. The Exponential distribution assumes a constant failure rate and is typical for electronic or random-stress failures.
+
+Once the models are fitted, the Mean Time To Failure (MTTF) can be calculated directly from their estimated parameters.''',
+                'technical_details': '''This comparison highlights how different assumptions lead to different reliability interpretations.By observing which model best fits the data:
+
+Model Selection Insight:Identifying which distribution best fits the data helps engineers infer whether failures are due to material aging, process variability, or random stress.
+
+Quantitative Lifetime Estimation:The fitted model provides a consistent way to compute MTTF, transforming test results into measurable reliability metrics.
+
+Design & Clarity Guidance:Comparing these model curves visually demonstrates how mathematical modeling translates raw test data into practical engineering understanding.'''
             },
             {
                 'title': 'Survival Function Comparison',
@@ -76,19 +94,28 @@ class ReportBuilder:
         self.pdf.set_font("Arial", size=10)
         self.effective_width = self.pdf.w - self.pdf.l_margin - self.pdf.r_margin
 
-    def _clean_text(self, text):
+    def _clean_text(self, text, preserve_math_symbols=False):
         """Clean text for PDF compatibility"""
         if not isinstance(text, str):
             text = str(text)
         
-        text = text.encode('ascii', 'ignore').decode('ascii')
+        # Don't encode to ASCII if we want to preserve math symbols
+        if not preserve_math_symbols:
+            text = text.encode('ascii', 'ignore').decode('ascii')
         
         replacements = {
             '"': '"', '"': '"', ''': "'", ''': "'", '–': '-', '—': '-',
             '…': '...', '°': ' degrees', '±': '+/-', '×': 'x', '÷': '/',
             '≤': '<=', '≥': '>=', '≠': '!=', '≈': '~=',
-            'β': 'beta', 'η': 'eta', 'σ': 'sigma', 'μ': 'mu', 'λ': 'lambda', 'Φ': 'Phi'
+            '→': '->'
         }
+        
+        # Only replace Greek letters if not preserving math symbols
+        if not preserve_math_symbols:
+            math_replacements = {
+                'β': 'beta', 'η': 'eta', 'σ': 'sigma', 'μ': 'mu', 'λ': 'lambda', 'Φ': 'Phi', 'Γ': 'Gamma'
+            }
+            replacements.update(math_replacements)
         
         for old, new in replacements.items():
             text = text.replace(old, new)
@@ -268,14 +295,20 @@ class ReportBuilder:
             
         fig_info = self.figure_descriptions[fig_index]
         
-        # Check if we need a new page
-        if self.pdf.get_y() > 200:  # If near bottom of page
-            self.pdf.add_page()
+        # Special handling for Figure 1 to ensure it fits on one page
+        if fig_index == 0:
+            # Check if we need a new page for Figure 1
+            if self.pdf.get_y() > 120:  # More restrictive for Figure 1
+                self.pdf.add_page()
+        else:
+            # Check if we need a new page for other figures
+            if self.pdf.get_y() > 200:  # If near bottom of page
+                self.pdf.add_page()
         
         # Figure title
         self.pdf.set_font('Arial', 'B', 11)
         self.pdf.cell(0, 8, f"Figure {fig_index + 1}: {fig_info['title']}", 0, 1, 'L')
-        self.pdf.ln(2)
+        self.pdf.ln(1)  # Reduced spacing for Figure 1
         
         # Add the image
         try:
@@ -284,8 +317,12 @@ class ReportBuilder:
                 temp_file.write(fig_buf.read())
                 temp_file_path = temp_file.name
             
-            # Calculate image size to fit page width
-            img_width = min(160, self.effective_width)
+            # Calculate image size - smaller for Figure 1 to leave room for text
+            if fig_index == 0:
+                img_width = min(140, self.effective_width * 0.85)  # Smaller image for Figure 1
+            else:
+                img_width = min(160, self.effective_width)
+            
             x_pos = (self.pdf.w - img_width) / 2
             
             # Get current Y position before adding image
@@ -294,18 +331,19 @@ class ReportBuilder:
             self.pdf.image(temp_file_path, x=x_pos, y=y_before_image, w=img_width)
             
             # Calculate proper image height and move cursor below image
-            # Use a more accurate height calculation based on image aspect ratio
             try:
                 from PIL import Image
                 with Image.open(temp_file_path) as img:
                     aspect_ratio = img.height / img.width
                     img_height = img_width * aspect_ratio
             except:
-                # Fallback to estimated height if PIL fails
                 img_height = img_width * 0.75  # Assume 4:3 aspect ratio
             
-            # Move cursor below image with extra spacing to prevent overlap
-            self.pdf.set_y(y_before_image + img_height + 10)  # Add 10mm extra spacing
+            # Move cursor below image with appropriate spacing
+            if fig_index == 0:
+                self.pdf.set_y(y_before_image + img_height + 5)  # Less spacing for Figure 1
+            else:
+                self.pdf.set_y(y_before_image + img_height + 10)
             
             os.unlink(temp_file_path)
             
@@ -314,30 +352,221 @@ class ReportBuilder:
             self.pdf.set_font("Arial", "", 10)
             self.pdf.cell(0, 10, f"Figure {fig_index + 1} failed to load", 0, 1)
         
-        # Description in table format
-        self.pdf.set_font('Arial', 'B', 9)
-        self.pdf.set_fill_color(240, 240, 240)
-        self.pdf.cell(0, 6, 'Description and Technical Analysis:', 1, 1, 'L', True)
+        # Special formatting for Figure 1 and Figure 2 to match Description.docx structure
+        if fig_index == 0 or fig_index == 1:
+            # Description header with gray background and border (like other figures)
+            self.pdf.set_font('Arial', 'B', 9)
+            self.pdf.set_fill_color(240, 240, 240)
+            self.pdf.cell(0, 6, 'Description', 1, 1, 'L', True)
+            
+            # Description content with preserved line breaks and equation formatting
+            self.pdf.set_font('Arial', '', 9)
+            desc_text = fig_info['description']
+            
+            # Split by explicit newlines to preserve paragraph structure
+            paragraphs = desc_text.split('\n\n')
+            
+            for paragraph in paragraphs:
+                paragraph = paragraph.strip()
+                if not paragraph:
+                    continue
+                    
+                # Check if this paragraph contains equations
+                if 'MTTF =' in paragraph or '→' in paragraph:
+                    # Handle equation formatting
+                    lines = paragraph.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        if line:
+                            if '→ MTTF =' in line:
+                                # Format equation lines with monospace-like appearance and preserve math symbols
+                                self.pdf.set_font('Arial', '', 8.5)
+                                self.pdf.cell(0, 4.5, self._clean_text(line, preserve_math_symbols=True), 0, 1, 'L')
+                                self.pdf.set_font('Arial', '', 9)
+                            else:
+                                # Regular text
+                                wrapped_lines = textwrap.wrap(line, width=115)
+                                for wrapped_line in wrapped_lines:
+                                    self.pdf.cell(0, 4.5, self._clean_text(wrapped_line), 0, 1, 'L')
+                else:
+                    # Regular paragraph - preserve internal line breaks
+                    lines = paragraph.split('. ')
+                    current_text = ""
+                    
+                    for i, sentence in enumerate(lines):
+                        if i < len(lines) - 1:
+                            sentence += '. '
+                        current_text += sentence
+                        
+                        # If sentence is getting long, wrap it
+                        if len(current_text) > 100 or i == len(lines) - 1:
+                            wrapped_lines = textwrap.wrap(current_text, width=115)
+                            for wrapped_line in wrapped_lines:
+                                self.pdf.cell(0, 4.5, self._clean_text(wrapped_line), 0, 1, 'L')
+                            current_text = ""
+                
+                # Add space between paragraphs
+                self.pdf.ln(2)
+            
+            self.pdf.ln(3)  # Space before Engineering Significance
+            
+            # Engineering Significance header with gray background and border
+            self.pdf.set_font('Arial', 'B', 9)
+            self.pdf.set_fill_color(240, 240, 240)
+            self.pdf.cell(0, 6, 'Engineering Significance', 1, 1, 'L', True)
+            self.pdf.ln(1)
+            
+            # Parse and format the technical details properly
+            tech_content = fig_info['technical_details'].strip()
+            
+            # Remove duplicate introductory text if it exists
+            lines = tech_content.split('\n')
+            filtered_lines = []
+            for line in lines:
+                line = line.strip()
+                if line and "Understanding the failure-time distribution allows engineers to:" not in line:
+                    filtered_lines.append(line)
+            
+            tech_content = '\n'.join(filtered_lines)
+            
+            # Split into sections based on bullet points and paragraphs
+            sections = []
+            current_section = []
+            
+            for line in tech_content.split('\n'):
+                line = line.strip()
+                if line.startswith('•'):
+                    if current_section:
+                        sections.append('\n'.join(current_section))
+                        current_section = []
+                    current_section.append(line)
+                elif line and not line.startswith('•'):
+                    current_section.append(line)
+            
+            if current_section:
+                sections.append('\n'.join(current_section))
+            
+            # Format each section
+            for section in sections:
+                if section.strip().startswith('•'):
+                    # Handle bullet point sections (Figure 1 style)
+                    bullet_lines = section.split('\n')
+                    main_bullet = bullet_lines[0].strip()
+                    
+                    # Extract the main point and sub-content
+                    if '—' in main_bullet:
+                        bullet_title = main_bullet.split('—')[0].strip()
+                        bullet_content = main_bullet.split('—', 1)[1].strip()
+                        
+                        # Format bullet title (bold)
+                        self.pdf.set_font('Arial', 'B', 9)
+                        self.pdf.cell(0, 4.5, self._clean_text(bullet_title), 0, 1, 'L')
+                        
+                        # Format bullet content with indentation - further increased wrap width
+                        self.pdf.set_font('Arial', '', 9)
+                        content_lines = textwrap.wrap(bullet_content, width=125, initial_indent='    ', subsequent_indent='    ')
+                        for content_line in content_lines:
+                            self.pdf.cell(0, 4.5, self._clean_text(content_line), 0, 1, 'L')
+                    else:
+                        # Simple bullet point - further increased wrap width
+                        self.pdf.set_font('Arial', '', 9)
+                        bullet_lines_wrapped = textwrap.wrap(main_bullet, width=130, subsequent_indent='    ')
+                        for bullet_line in bullet_lines_wrapped:
+                            self.pdf.cell(0, 4.5, self._clean_text(bullet_line), 0, 1, 'L')
+                    
+                    self.pdf.ln(2)  # Space after each bullet point
+                
+                elif ':' in section and (fig_index == 1):
+                    # Handle Figure 2 sections - distinguish between labels and regular text
+                    lines = section.split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                            
+                        # Check if this is a true label (specific pattern for Figure 2 labels)
+                        is_label = False
+                        if ':' in line:
+                            label_candidates = ['Model Selection Insight:', 'Quantitative Lifetime Estimation:', 'Design & Clarity Guidance:']
+                            for candidate in label_candidates:
+                                if candidate in line:
+                                    is_label = True
+                                    break
+                        
+                        if is_label and ':' in line:
+                            # Split into label and content for true labels
+                            parts = line.split(':', 1)
+                            label = parts[0].strip()
+                            content = parts[1].strip() if len(parts) > 1 else ""
+                            
+                            # Format label (bold)
+                            self.pdf.set_font('Arial', 'B', 9)
+                            self.pdf.cell(0, 4.5, self._clean_text(label + ':'), 0, 1, 'L')
+                            
+                            # Format content with slight indentation
+                            if content:
+                                self.pdf.set_font('Arial', '', 9)
+                                content_lines = textwrap.wrap(content, width=115, initial_indent='', subsequent_indent='')
+                                for content_line in content_lines:
+                                    self.pdf.cell(0, 4.5, self._clean_text(content_line), 0, 1, 'L')
+                        else:
+                            # Regular text line (including "By observing which model best fits the data:")
+                            self.pdf.set_font('Arial', '', 9)
+                            # Handle line breaks for specific cases
+                            if 'interpretations.By observing' in line:
+                                line = line.replace('interpretations.By observing', 'interpretations.\n\nBy observing')
+                            elif 'interpretations.By' in line:
+                                line = line.replace('interpretations.By', 'interpretations.\n\nBy')
+                            
+                            # Split by manual line breaks if they exist
+                            sub_lines = line.split('\n')
+                            for sub_line in sub_lines:
+                                sub_line = sub_line.strip()
+                                if sub_line:
+                                    wrapped_lines = textwrap.wrap(sub_line, width=115)
+                                    for wrapped_line in wrapped_lines:
+                                        self.pdf.cell(0, 4.5, self._clean_text(wrapped_line), 0, 1, 'L')
+                    
+                    self.pdf.ln(2)  # Space after each section
+                
+                else:
+                    # Handle regular paragraph text - increased wrap width
+                    self.pdf.set_font('Arial', '', 9)
+                    para_lines = textwrap.wrap(section.strip(), width=115)
+                    for para_line in para_lines:
+                        self.pdf.cell(0, 4.5, self._clean_text(para_line), 0, 1, 'L')
+                    self.pdf.ln(2)
         
-        self.pdf.set_font('Arial', '', 9)
+        else:
+            # Standard formatting for other figures
+            self.pdf.set_font('Arial', 'B', 9)
+            self.pdf.set_fill_color(240, 240, 240)
+            self.pdf.cell(0, 6, 'Description and Technical Analysis:', 1, 1, 'L', True)
+            
+            self.pdf.set_font('Arial', '', 9)
+            line_height = 4
+            wrap_width = 90
+            
+            # Description
+            desc_lines = textwrap.wrap(fig_info['description'], width=wrap_width)
+            for line in desc_lines:
+                self.pdf.cell(0, line_height, self._clean_text(line), 0, 1, 'L')
+            
+            self.pdf.ln(2)
+            
+            # Technical details
+            self.pdf.set_font('Arial', 'B', 9)
+            self.pdf.cell(0, 4, 'Engineering Significance:', 0, 1, 'L')
+            self.pdf.set_font('Arial', '', 9)
+            
+            tech_lines = textwrap.wrap(fig_info['technical_details'], width=wrap_width)
+            for line in tech_lines:
+                self.pdf.cell(0, line_height, self._clean_text(line), 0, 1, 'L')
         
-        # Description
-        desc_lines = textwrap.wrap(fig_info['description'], width=90)
-        for line in desc_lines:
-            self.pdf.cell(0, 4, self._clean_text(line), 0, 1, 'L')
-        
-        self.pdf.ln(2)
-        
-        # Technical details
-        self.pdf.set_font('Arial', 'B', 9)
-        self.pdf.cell(0, 4, 'Engineering Significance:', 0, 1, 'L')
-        self.pdf.set_font('Arial', '', 9)
-        
-        tech_lines = textwrap.wrap(fig_info['technical_details'], width=90)
-        for line in tech_lines:
-            self.pdf.cell(0, 4, self._clean_text(line), 0, 1, 'L')
-        
-        self.pdf.ln(8)
+        if fig_index == 0:
+            self.pdf.ln(5)  # Less spacing after Figure 1
+        else:
+            self.pdf.ln(8)
 
     def add_footer_info(self):
         """Add footer information at bottom of last page"""
