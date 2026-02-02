@@ -128,11 +128,11 @@ class LifetimeAnalysisController:
             text_output.append(f"\nError in advanced analysis: {str(e)}")
     
     def _generate_all_figures(self, bootstrap_result, mc_result, text_output):
-        """Generate all charts and return BytesIO object list - Reorganized for better flow"""
+        """Generate all charts and return BytesIO object list - 8 figures total"""
         figures = []
         
         try:
-            # === SECTION 1: Data Exploration ===
+            # === SECTION 1: Data Exploration (Figures 1-3) ===
             # 1. Histogram of raw data
             fig1 = self.analyzer.plot_histogram()
             figures.append(self._save_figure_to_memory(fig1))
@@ -145,34 +145,29 @@ class LifetimeAnalysisController:
             fig3 = self.analyzer.plot_survival_comparison()
             figures.append(self._save_figure_to_memory(fig3))
             
-            # Skip figure 4 (hazard rate function comparison) as requested
-            # fig4 = self.analyzer.plot_hazard_rate_comparison()
-            # figures.append(self._save_figure_to_memory(fig4))
+            # Removed: Hazard rate function comparison
+            # Removed: Weibull probability paper
             
-            # === SECTION 2: Statistical Validation ===
-            # 5. Weibull probability paper (goodness-of-fit visualization)
-            fig5 = self.analyzer.plot_weibull_probability_paper()
-            figures.append(self._save_figure_to_memory(fig5))
-            
-            # === SECTION 3: Parameter Uncertainty Analysis ===
+            # === SECTION 2: Parameter Uncertainty Analysis (Figures 4-5) ===
             self.plotter = LifetimeAnalyzerPlot(
                 data=self.mc_analyzer.data, 
                 bootstrap_result=bootstrap_result, 
                 mc_result=mc_result
             )
             
-            # 6-7. Bootstrap parameter distributions (Beta and Eta)
+            # 4-5. Bootstrap parameter distributions (Beta and Eta)
             bootstrap_figs = self.plotter.plot_bootstrap_histograms()
             for fig in bootstrap_figs:
                 figures.append(self._save_figure_to_memory(fig))
             
-            # === SECTION 4: Predictive Analysis ===
-            # 8. Monte Carlo lifetime predictions
+            # === SECTION 3: Predictive Analysis (Figure 6) ===
+            # 6. Monte Carlo lifetime predictions
             fig_mc = self.plotter.plot_mc_histogram()
             figures.append(self._save_figure_to_memory(fig_mc))
             
-            # === SECTION 5: Model Validation ===
-            # 9-10. Model validation (Histogram comparison and KS test)
+            # === SECTION 4: Model Validation (Figures 7-8) ===
+            # 7. Histogram Comparison: Simulated vs Actual Data
+            # 8. CDF Comparison & KS Test
             validation_figs, ks_result = self.plotter.plot_simulated_vs_actual()
             for fig in validation_figs:
                 figures.append(self._save_figure_to_memory(fig))
@@ -224,7 +219,7 @@ class LifetimeAnalysisController:
             
             # Create report builder and generate PDF only
             self.report_builder = ReportBuilder(text_output, figures, data_info)
-            self.report_builder.build(unique_filename)
+            self.report_builder.save(unique_filename)
             
             return os.path.abspath(unique_filename), None
             
