@@ -1,0 +1,97 @@
+name: Build Cross-Platform Executables
+
+on:
+  push:
+    tags:
+      - 'v*'  # 當推送 v 開頭的 tag 時觸發 (例如 v1.0.0)
+  workflow_dispatch:  # 允許手動觸發
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      
+      - name: Build executable
+        run: |
+          pyinstaller --onefile --windowed --name Test2Fail-Toolkit main.py --hidden-import tkinter --hidden-import PIL._tkinter_finder --hidden-import matplotlib.backends.backend_tkagg --hidden-import matplotlib.backends.backend_agg --hidden-import scipy.stats --hidden-import scipy.special --hidden-import scipy.optimize --hidden-import statsmodels.distributions.empirical_distribution --hidden-import fpdf2 --hidden-import openpyxl
+      
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Test2Fail-Toolkit-Windows
+          path: dist/Test2Fail-Toolkit.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      
+      - name: Build application
+        run: |
+          pyinstaller --onefile --windowed --name Test2Fail-Toolkit main.py --hidden-import tkinter --hidden-import PIL._tkinter_finder --hidden-import matplotlib.backends.backend_tkagg --hidden-import matplotlib.backends.backend_agg --hidden-import scipy.stats --hidden-import scipy.special --hidden-import scipy.optimize --hidden-import statsmodels.distributions.empirical_distribution --hidden-import fpdf2 --hidden-import openpyxl
+      
+      - name: Zip Mac app
+        run: |
+          cd dist
+          zip -r Test2Fail-Toolkit-Mac.zip Test2Fail-Toolkit.app || zip -r Test2Fail-Toolkit-Mac.zip Test2Fail-Toolkit
+      
+      - name: Upload Mac artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Test2Fail-Toolkit-Mac
+          path: dist/Test2Fail-Toolkit-Mac.zip
+
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Test2Fail-Toolkit-Windows
+          path: ./windows
+      
+      - name: Download Mac artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Test2Fail-Toolkit-Mac
+          path: ./mac
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./windows/Test2Fail-Toolkit.exe
+            ./mac/Test2Fail-Toolkit-Mac.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
